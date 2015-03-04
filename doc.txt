@@ -1,0 +1,11 @@
+mp_limb_t smoothness_bound(mp_limb_t n)
+
+	This function returns the smoothness B which is to be used in the
+	sieve. The numbers will be checked for B smoothness based on this
+	value.
+
+	It is calculated as follows
+
+	B = e ^ ((0.5)*((ln(n))*(ln(ln(n))))^0.5)
+
+
