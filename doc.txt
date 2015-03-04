@@ -8,4 +8,13 @@ mp_limb_t smoothness_bound(mp_limb_t n)
 
 	B = e ^ ((0.5)*((ln(n))*(ln(ln(n))))^0.5)
 
+mp_limb_t* get_primes(mp_limb_t upper_bound, mp_limb_t* num)
+
+	This function returns a pointer to an array of prime numbers lesser
+	than or equal to the upper_bound supplied. It uses a cached prime
+	table as we know that the upper bound cannot exceed 650, i.e. the 
+	maximum smoothness value for a 64 bit integer.
+
+	
+
 
