@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "flint.h"
+#include "ulong_extras.h"
 #include <math.h>
 
 /* A table of prime numbers below 700 */
@@ -22,7 +23,7 @@ mp_limb_t prime_table[] = {   2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43
 /* B = e ^ ((0.5)*((ln(n))*(ln(ln(n))))^0.5) */
 
 mp_limb_t
-smoothness_bound(mp_limb_t n)
+get_smoothness_bound(mp_limb_t n)
 {
     mp_limb_t ret;
     double val, loge2, lnn, lnlnn;
@@ -42,22 +43,63 @@ smoothness_bound(mp_limb_t n)
 }
 
 mp_limb_t*
-get_primes(mp_limb_t upper_bound, mp_limb_t* num)
+get_primes(mp_limb_t B, mp_limb_t* num)
 {
 	int count, i;
 	mp_limb_t* prime_arr;
 	count = 0;
 	i = 0;
 
-	while(prime_table[i++]<=upper_bound)
+	while(prime_table[i++]<=B)
 		count+=1;
 
-	prime_arr = malloc(count*sizeof(mp_limb_t));
+	prime_arr = (mp_limb_t*)malloc(count*sizeof(mp_limb_t));
 
 	for (i = 0;i<count;i++)
 		prime_arr[i] = prime_table[i];
 	*num = count;
 	return prime_arr;
+}
+
+mp_limb_t*
+get_factor_arr(mp_limb_t n, mp_limb_t prime_arr[], mp_limb_t num, mp_limb_t* fac_count)
+{
+	mp_limb_t ninv;
+	mp_limb_t* factor_base;
+	int legendre_value[num], i, j, count;
+	count = 0;
+	j = 0;
+
+	for (i = 0;i<num;i++)			/* calculating legendre symbol values */
+	{
+		ninv = n_preinvert_limb(prime_arr[i]);
+		legendre_value[i] = n_powmod2_ui_preinv(n, (prime_arr[i] - 1)/2, prime_arr[i], ninv);
+	}
+
+	for (i = 0;i<num;i++)			/* calculating number of primes for which (a|p) = 1 */
+		if (legendre_value[i] == 1)
+			count+=1;
+
+	factor_base = (mp_limb_t*)malloc(count*sizeof(mp_limb_t));
+
+	for (i = 0;i<num;i++)			/* populating factor base */
+		if (legendre_value[i] == 1)
+			factor_base[j++] = prime_arr[i];
+
+	*fac_count = count;
+	return factor_base;
+}
+
+mp_limb_t*
+get_factor_base(mp_limb_t n, mp_limb_t* factor_base_count)
+{
+	mp_limb_t B = get_smoothness_bound(n);
+	mp_limb_t prime_count, factor_count;
+	mp_limb_t* prime_arr = get_primes(B, &prime_count);
+	mp_limb_t* factor_base = get_factor_arr(n, prime_arr, prime_count, &factor_count);
+	*factor_base_count = factor_count;
+
+	return factor_base;
 }
 
 int main()
