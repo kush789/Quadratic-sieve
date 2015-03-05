@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "flint.h"
 #include "ulong_extras.h"
+#include "fmpz.h"
 #include <math.h>
 
 /* A table of prime numbers below 700 */
@@ -38,7 +39,7 @@ get_smoothness_bound(mp_limb_t n)
     val = sqrt(val) * 0.5;
     val = pow(2.71, val);
     
-    ret = ceil(val);
+    ret = ceil(val) + 20;
     return ret;
 }
 
@@ -53,7 +54,7 @@ get_primes(mp_limb_t B, mp_limb_t* num)
 	while(prime_table[i++]<=B)
 		count+=1;
 
-	prime_arr = (mp_limb_t*)malloc(count*sizeof(mp_limb_t));
+	prime_arr = (mp_limb_t*)flint_malloc(count*sizeof(mp_limb_t));
 
 	for (i = 0;i<count;i++)
 		prime_arr[i] = prime_table[i];
@@ -61,14 +62,14 @@ get_primes(mp_limb_t B, mp_limb_t* num)
 	return prime_arr;
 }
 
-mp_limb_t*
+fmpz*
 get_factor_arr(mp_limb_t n, mp_limb_t prime_arr[], mp_limb_t num, mp_limb_t* fac_count)
 {
 	mp_limb_t ninv;
-	mp_limb_t* factor_base;
+	fmpz* factor_base;
 	int legendre_value[num], i, j, count;
 	count = 0;
-	j = 0;
+	j = 1;
 
 	for (i = 0;i<num;i++)			/* calculating legendre symbol values */
 	{
@@ -79,9 +80,9 @@ get_factor_arr(mp_limb_t n, mp_limb_t prime_arr[], mp_limb_t num, mp_limb_t* fac
 	for (i = 0;i<num;i++)			/* calculating number of primes for which (a|p) = 1 */
 		if (legendre_value[i] == 1)
 			count+=1;
-
-	factor_base = (mp_limb_t*)malloc(count*sizeof(mp_limb_t));
-
+	count+=1;
+	factor_base = (fmpz*)flint_malloc(count*sizeof(mp_limb_t));
+	factor_base[0] = -1;
 	for (i = 0;i<num;i++)			/* populating factor base */
 		if (legendre_value[i] == 1)
 			factor_base[j++] = prime_arr[i];
@@ -90,16 +91,122 @@ get_factor_arr(mp_limb_t n, mp_limb_t prime_arr[], mp_limb_t num, mp_limb_t* fac
 	return factor_base;
 }
 
-mp_limb_t*
+fmpz*
 get_factor_base(mp_limb_t n, mp_limb_t* factor_base_count)
 {
 	mp_limb_t B = get_smoothness_bound(n);
 	mp_limb_t prime_count, factor_count;
 	mp_limb_t* prime_arr = get_primes(B, &prime_count);
-	mp_limb_t* factor_base = get_factor_arr(n, prime_arr, prime_count, &factor_count);
+	fmpz* factor_base = get_factor_arr(n, prime_arr, prime_count, &factor_count);
 	*factor_base_count = factor_count;
 
 	return factor_base;
+}
+
+void
+get_sieveing_range(mp_limb_t n, mp_limb_t* min, mp_limb_t* max)
+{
+	mp_limb_t B, M, sqrtn;
+
+	sqrtn = n_sqrt(n);
+	B = get_smoothness_bound(n);
+
+	*min = sqrtn - B;
+	*max = sqrtn + B;
+}
+
+int**
+get_relation_matrix(mp_limb_t n, fmpz* factor_base, mp_limb_t factor_base_count, mp_limb_t* numbers, mp_limb_t* numbers_count)
+{
+	int i, j, count, B_smooth_count;
+	mp_limb_t min, max, range, iter, currdiff;
+	fmpz* diff_values;
+
+	fmpz_t x, xsq, currfactor;
+	fmpz_init(x);
+	fmpz_init(xsq);
+	fmpz_init(currfactor);
+	B_smooth_count = 0;
+
+	get_sieveing_range(n, &min, &max);
+	range = max - min + 1;
+
+	/*  table containing x^2 - n values for x in range [min, max] */
+
+	diff_values = (fmpz*)flint_malloc(range*sizeof(mp_limb_t));
+	for (iter = min; iter<=max;iter+=1)
+	{
+		fmpz_set_ui(x, iter);
+		*x = (*x)*(*x);
+		*x = *x - n;
+		diff_values[iter-min] = *x;
+	}
+
+	int factorization[range][factor_base_count];
+
+	for (i = 0;i<range;i++)						/* checking if negative, for factor -1 */
+		if (diff_values[i] < 0)
+		{
+			factorization[i][0] = 1;
+			diff_values[i]*=(-1);
+		}
+		else
+			factorization[i][0] = 0;
+
+	/* Checking for B smoothness for positive factors */
+
+	for (i = factor_base_count -1;i>0;i--)		/* for each prime in factor base */
+	{
+		*currfactor = factor_base[i];
+
+		for (j = 0;j<range;j++)					/* for each element in array diff_values */
+		{
+			count = 0;
+				while (1)
+				{
+					if (diff_values[j] == 1)
+						break;					/* if factored completely */
+						
+					if (diff_values[j]%(*currfactor) == 0)
+					{
+						count+=1;				/* count powers of each prime factor */
+						diff_values[j]/=(*currfactor);
+					}
+					else
+						break;
+				}
+
+			factorization[j][i] = count%2;		
+		}
+	}
+
+	for (j = 0;j<range;j++)						/* Counting numbers which are B smooth */
+		if (diff_values[j] == 1)
+			B_smooth_count+=1;
+	
+	/* array to store B smooth numbers */
+		
+	mp_limb_t* B_smooth_numbers = (mp_limb_t*)flint_malloc(B_smooth_count * sizeof(mp_limb_t));
+	j = 0;
+	for (i = 0; i < range;i++)
+	{
+		if (diff_values[i] == 1)
+			B_smooth_numbers[j++] = min+i;		/* storing B smooth numbers */
+	}
+
+	int** sieve_matrix;							/* declaring space for sieve matrix */
+	sieve_matrix = (int**) flint_malloc(factor_base_count * sizeof(int*));
+	for (i = 0;i<factor_base_count;i++)
+		sieve_matrix[i] = (int*) flint_malloc(B_smooth_count * sizeof(int));
+
+	for (i = 0;i<factor_base_count;i++)			/* row ->factors , columns -> B smooth numbers */
+		for (j = 0;j<B_smooth_count;j++)
+			sieve_matrix[i][j] = factorization[B_smooth_numbers[j]-min][i];
+
+
+	numbers = B_smooth_numbers;
+	*numbers_count = B_smooth_count;
+	return sieve_matrix;
 }
 
 int main()

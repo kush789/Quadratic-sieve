@@ -29,10 +29,36 @@ mp_limb_t* get_factor_arr(mp_limb_t n, mp_limb_t prime_arr[], mp_limb_t num, mp_
 	- num is the number of elements in prime_arr[].
 	- fac_count gets set to the number of elements in the returned factor base.
 
-mp_limb_t* get_factor_base(mp_limb_t n, mp_limb_t* factor_base_count)
+fmpz* get_factor_base(mp_limb_t n, mp_limb_t* factor_base_count)
 
 	Returns the factor base for quadratic sieving of a number n. Makes 
-	calls to get_smoothness_bound(), get_primes(), get_factor_arr(). 
+	calls to get_smoothness_bound(), get_primes(), get_factor_arr(). Consists
+	of the prime numbers and an additional factor, i,e, -1.
 
 	factor_base_count gets set to the number of elements in the returned
 	factor_base;
+
+void get_sieveing_range(mp_limb_t n, mp_limb_t* min, mp_limb_t* max)
+
+	This function sets min and max to the lower and upper bounds of the 
+	numbers being sieved.
+
+	- min = sqrt(n) - B
+	- max = sqrt(n) + B
+
+	Where B is the smoothness bound for n calculated from get_smoothness_bound()
+
+int** get_relation_matrix(mp_limb_t n, fmpz* factor_base, mp_limb_t factor_base_count,
+						  mp_limb_t* numbers, mp_limb_t* numbers_count)
+
+	This function returns a 2D array of relations. Columns are the B smooth numbers, 
+	rows are the factors in the factor base given. 
+
+	- n is the number being factored
+	- factor_base is the array of factors computed from get_factor_base
+	- factor_base_count is the number of elements in factor_base
+	- numbers get set to the array of B smooth numbers in the range being computed
+	  B is the smoothness bound calculated from ge_smoothness_bound(). range is 
+	  computed from get_sieveing_range().
+	- numbers_count gets set to the number of elements in the array "numbers" of B
+	  smooth numbers.
