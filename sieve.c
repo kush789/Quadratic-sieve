@@ -116,7 +116,7 @@ get_sieveing_range(mp_limb_t n, mp_limb_t* min, mp_limb_t* max)
 }
 
 int**
-get_relation_matrix(mp_limb_t n, fmpz* factor_base, mp_limb_t factor_base_count, mp_limb_t* numbers, mp_limb_t* numbers_count)
+get_relation_matrix(mp_limb_t n, fmpz* factor_base, mp_limb_t factor_base_count, mp_limb_t** B_smooth_numbers, mp_limb_t* numbers_count)
 {
 	int i, j, count, B_smooth_count;
 	mp_limb_t min, max, range, iter, currdiff;
@@ -185,13 +185,13 @@ get_relation_matrix(mp_limb_t n, fmpz* factor_base, mp_limb_t factor_base_count,
 			B_smooth_count+=1;
 	
 	/* array to store B smooth numbers */
-		
-	mp_limb_t* B_smooth_numbers = (mp_limb_t*)flint_malloc(B_smooth_count * sizeof(mp_limb_t));
+
+	*B_smooth_numbers = (mp_limb_t*)flint_malloc(B_smooth_count * sizeof(mp_limb_t));
 	j = 0;
 	for (i = 0; i < range;i++)
 	{
 		if (diff_values[i] == 1)
-			B_smooth_numbers[j++] = min+i;		/* storing B smooth numbers */
+			(*B_smooth_numbers)[j++] = min+i;		/* storing B smooth numbers */
 	}
 
 	int** sieve_matrix;							/* declaring space for sieve matrix */
@@ -201,15 +201,36 @@ get_relation_matrix(mp_limb_t n, fmpz* factor_base, mp_limb_t factor_base_count,
 
 	for (i = 0;i<factor_base_count;i++)			/* row ->factors , columns -> B smooth numbers */
 		for (j = 0;j<B_smooth_count;j++)
-			sieve_matrix[i][j] = factorization[B_smooth_numbers[j]-min][i];
+			sieve_matrix[i][j] = factorization[(*B_smooth_numbers)[j]-min][i];
 
-
-	numbers = B_smooth_numbers;
 	*numbers_count = B_smooth_count;
 	return sieve_matrix;
 }
 
 int main()
 {
+	int** arr;
+	mp_limb_t n;
+	int i, j;
+	mp_limb_t factor_base_count, B_smooth_count;
+	mp_limb_t** B_smooth_numbers;
+
+	n = 87463;
+	fmpz* factor_base = get_factor_base(n, &factor_base_count);
+	arr = get_relation_matrix(n, factor_base, factor_base_count, B_smooth_numbers, &B_smooth_count);
+
+	printf("     ");
+	for (j = 0;j<B_smooth_count;j++)
+		flint_printf("%wu ", (*B_smooth_numbers)[j]);
+	printf("\n\n");
+
+	for (i = 0;i < factor_base_count;i++)
+	{
+		flint_printf("%wd   ", factor_base[i]);
+		for (j = 0;j<B_smooth_count;j++)
+			printf(" %d  ",arr[i][j] );
+		printf("\n");
+	}
+	
 	return 0;
 }
